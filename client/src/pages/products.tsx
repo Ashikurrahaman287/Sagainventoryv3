@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ProductTable, Product } from "@/components/product-table";
+import { ProductTable } from "@/components/product-table";
 import { ProductFormDialog } from "@/components/product-form-dialog";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { SearchBar } from "@/components/search-bar";
@@ -16,7 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { exportToCSV } from "@/lib/export";
-import type { InsertProduct, Supplier } from "@shared/schema";
+import type { InsertProduct, Supplier, Product } from "@shared/schema";
 
 export default function Products() {
   const [search, setSearch] = useState("");

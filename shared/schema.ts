@@ -86,10 +86,12 @@ export const insertProductSchema = createInsertSchema(products).omit({
   buyingPrice: z.string(),
   sellingPrice: z.string(),
   quantity: z.number().int().min(0),
+  supplierId: z.string().nullable().optional(),
 });
 
 export const insertSaleItemSchema = createInsertSchema(saleItems).omit({
   id: true,
+  saleId: true,
 }).extend({
   unitPrice: z.string(),
   buyingPrice: z.string(),
@@ -99,6 +101,7 @@ export const insertSaleItemSchema = createInsertSchema(saleItems).omit({
 export const insertSaleSchema = createInsertSchema(sales).omit({
   id: true,
   createdAt: true,
+  receiptNumber: true,
 }).extend({
   subtotal: z.string(),
   discount: z.string(),

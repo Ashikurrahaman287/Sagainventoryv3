@@ -10,17 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2 } from "lucide-react";
-
-export interface Product {
-  id: string;
-  stockCode: string;
-  name: string;
-  category: string;
-  buyingPrice: number;
-  sellingPrice: number;
-  quantity: number;
-  supplier: string;
-}
+import type { Product } from "@shared/schema";
 
 interface ProductTableProps {
   products: Product[];
@@ -71,13 +61,13 @@ export function ProductTable({ products, onEdit, onDelete }: ProductTableProps) 
                     {product.quantity}
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    ${product.sellingPrice.toFixed(2)}
+                    ${parseFloat(product.sellingPrice).toFixed(2)}
                   </TableCell>
                   <TableCell>
                     <Badge variant={status.variant}>{status.label}</Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {product.supplier}
+                    {product.supplierId || "N/A"}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">

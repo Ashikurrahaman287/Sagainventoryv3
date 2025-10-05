@@ -80,7 +80,11 @@ export function ProductFormDialog({
   }, [product, form]);
 
   const handleSubmit = async (data: InsertProduct) => {
-    await onSubmit(data);
+    const submissionData = {
+      ...data,
+      supplierId: data.supplierId || null,
+    };
+    await onSubmit(submissionData);
     onOpenChange(false);
     form.reset();
   };
@@ -153,6 +157,7 @@ export function ProductFormDialog({
                         type="number"
                         step="0.01"
                         {...field}
+                        onChange={(e) => field.onChange(e.target.value)}
                         data-testid="input-buying-price"
                       />
                     </FormControl>
@@ -172,6 +177,7 @@ export function ProductFormDialog({
                         type="number"
                         step="0.01"
                         {...field}
+                        onChange={(e) => field.onChange(e.target.value)}
                         data-testid="input-selling-price"
                       />
                     </FormControl>
@@ -205,19 +211,25 @@ export function ProductFormDialog({
               name="supplierId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Supplier</FormLabel>
+                  <FormLabel>Supplier (Optional)</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger data-testid="select-supplier">
-                        <SelectValue placeholder="Select a supplier" />
+                        <SelectValue placeholder={suppliers.length === 0 ? "No suppliers available" : "Select a supplier (optional)"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {suppliers.map((supplier) => (
-                        <SelectItem key={supplier.id} value={supplier.id}>
-                          {supplier.name}
+                      {suppliers.length === 0 ? (
+                        <SelectItem value="" disabled>
+                          No suppliers available
                         </SelectItem>
-                      ))}
+                      ) : (
+                        suppliers.map((supplier) => (
+                          <SelectItem key={supplier.id} value={supplier.id}>
+                            {supplier.name}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
