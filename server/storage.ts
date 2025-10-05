@@ -337,6 +337,85 @@ export class DbStorage implements IStorage {
       totalRevenue: Number(result[0]?.totalRevenue || 0),
     };
   }
+
+  async getStockReportByCategory() {
+    const result = await db.select({
+      category: products.category,
+      productCount: sql<number>`count(*)`,
+      totalValue: sql<number>`COALESCE(SUM(CAST(${products.quantity} AS NUMERIC) * CAST(${products.sellingPrice} AS NUMERIC)), 0)`,
+      lowStockCount: sql<number>`COUNT(CASE WHEN CAST(${products.quantity} AS INTEGER) < 20 THEN 1 END)`,
+    })
+    .from(products)
+    .groupBy(products.category)
+    .orderBy(sql`${products.category}`);
+
+    return result.map(row => ({
+      category: row.category,
+      products: Number(row.productCount),
+      value: Number(row.totalValue),
+      status: Number(row.lowStockCount) > 0 ? 'low' : 'healthy',
+    }));
+  }
+
+  async getSalesReportByPeriod(period: string) {
+    const now = new Date();
+    let dateFilter;
+
+    switch (period) {
+      case 'today':
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        dateFilter = sql`${sales.createdAt} >= ${todayStart}`;
+        break;
+      case 'week':
+        const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        dateFilter = sql`${sales.createdAt} >= ${weekStart}`;
+        break;
+      case 'month':
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        dateFilter = sql`${sales.createdAt} >= ${monthStart}`;
+        break;
+      case 'year':
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        dateFilter = sql`${sales.createdAt} >= ${yearStart}`;
+        break;
+      default:
+        dateFilter = sql`1=1`;
+    }
+
+    const result = await db.select({
+      transactions: sql<number>`count(*)`,
+      revenue: sql<number>`COALESCE(SUM(CAST(${sales.total} AS NUMERIC)), 0)`,
+      profit: sql<number>`COALESCE(SUM(CAST(${sales.total} AS NUMERIC) - CAST(${sales.subtotal} AS NUMERIC) * 0.6), 0)`,
+    })
+    .from(sales)
+    .where(dateFilter);
+
+    return {
+      transactions: Number(result[0]?.transactions || 0),
+      revenue: Number(result[0]?.revenue || 0),
+      profit: Number(result[0]?.profit || 0),
+    };
+  }
+
+  async getTopCustomers(limit: number = 10) {
+    const result = await db.select({
+      customerId: sales.customerId,
+      customerName: customers.name,
+      purchases: sql<number>`count(*)`,
+      spent: sql<number>`COALESCE(SUM(CAST(${sales.total} AS NUMERIC)), 0)`,
+    })
+    .from(sales)
+    .innerJoin(customers, eq(sales.customerId, customers.id))
+    .groupBy(sales.customerId, customers.name)
+    .orderBy(desc(sql<number>`COALESCE(SUM(CAST(${sales.total} AS NUMERIC)), 0)`))
+    .limit(limit);
+
+    return result.map(row => ({
+      name: row.customerName,
+      purchases: Number(row.purchases),
+      spent: Number(row.spent),
+    }));
+  }
 }
 
 export const storage = new DbStorage();

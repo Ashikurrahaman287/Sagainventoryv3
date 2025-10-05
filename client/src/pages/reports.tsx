@@ -10,21 +10,116 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface StockReport {
+  category: string;
+  products: number;
+  value: number;
+  status: 'healthy' | 'low';
+}
+
+interface SalesReport {
+  transactions: number;
+  revenue: number;
+  profit: number;
+}
+
+interface CustomerReport {
+  name: string;
+  purchases: number;
+  spent: number;
+}
+
+function ProfitCards() {
+  const { data: todayData, isLoading: loadingToday } = useQuery<SalesReport>({
+    queryKey: ["/api/reports/sales", "today"],
+    queryFn: async () => {
+      const response = await fetch(`/api/reports/sales?period=today`);
+      if (!response.ok) throw new Error("Failed to fetch sales data");
+      return response.json();
+    },
+  });
+
+  const { data: weekData, isLoading: loadingWeek } = useQuery<SalesReport>({
+    queryKey: ["/api/reports/sales", "week"],
+    queryFn: async () => {
+      const response = await fetch(`/api/reports/sales?period=week`);
+      if (!response.ok) throw new Error("Failed to fetch sales data");
+      return response.json();
+    },
+  });
+
+  const { data: monthData, isLoading: loadingMonth } = useQuery<SalesReport>({
+    queryKey: ["/api/reports/sales", "month"],
+    queryFn: async () => {
+      const response = await fetch(`/api/reports/sales?period=month`);
+      if (!response.ok) throw new Error("Failed to fetch sales data");
+      return response.json();
+    },
+  });
+
+  const profitData = [
+    { label: "Today's Profit", value: "today", data: todayData, isLoading: loadingToday },
+    { label: "Weekly Profit", value: "week", data: weekData, isLoading: loadingWeek },
+    { label: "Monthly Profit", value: "month", data: monthData, isLoading: loadingMonth },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {profitData.map((period) => (
+        <Card key={period.value}>
+          <CardHeader>
+            <CardTitle className="text-base">{period.label}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {period.isLoading ? (
+              <Skeleton className="h-12 w-full" />
+            ) : period.data ? (
+              <>
+                <div className="text-3xl font-bold font-mono text-success" data-testid={`profit-${period.value}`}>
+                  ${period.data.profit.toFixed(2)}
+                </div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  From {period.data.transactions} transactions
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">No data</div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 export default function Reports() {
   const [period, setPeriod] = useState("today");
 
-  const stockData = [
-    { category: "Electronics", products: 45, value: 12450.50, status: "healthy" },
-    { category: "Stationery", products: 28, value: 2890.75, status: "low" },
-    { category: "Clothes", products: 65, value: 18760.00, status: "healthy" },
-  ];
+  const { data: stockData, isLoading: isLoadingStock } = useQuery<StockReport[]>({
+    queryKey: ["/api/reports/stock"],
+  });
 
-  const salesData = [
-    { date: "Today", transactions: 32, revenue: 4320.00, profit: 1840.50 },
-    { date: "Yesterday", transactions: 28, revenue: 3980.00, profit: 1650.25 },
-    { date: "This Week", transactions: 198, revenue: 28450.00, profit: 12180.75 },
-    { date: "This Month", transactions: 845, revenue: 124350.00, profit: 52840.00 },
+  const { data: salesData, isLoading: isLoadingSales } = useQuery<SalesReport>({
+    queryKey: ["/api/reports/sales", period],
+    queryFn: async () => {
+      const response = await fetch(`/api/reports/sales?period=${period}`);
+      if (!response.ok) throw new Error("Failed to fetch sales data");
+      return response.json();
+    },
+  });
+
+  const { data: topCustomers, isLoading: isLoadingCustomers } = useQuery<CustomerReport[]>({
+    queryKey: ["/api/reports/customers"],
+  });
+
+  const periods = [
+    { value: 'today', label: 'Today' },
+    { value: 'week', label: 'This Week' },
+    { value: 'month', label: 'This Month' },
+    { value: 'year', label: 'This Year' },
   ];
 
   return (
@@ -78,35 +173,48 @@ export default function Reports() {
               <CardTitle>Stock Overview by Category</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {stockData.map((item) => (
-                  <div
-                    key={item.category}
-                    className="flex items-center justify-between p-4 rounded-md border"
-                  >
-                    <div>
-                      <div className="font-semibold">{item.category}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {item.products} products
+              {isLoadingStock ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : stockData && stockData.length > 0 ? (
+                <div className="space-y-4">
+                  {stockData.map((item: any) => (
+                    <div
+                      key={item.category}
+                      className="flex items-center justify-between p-4 rounded-md border"
+                      data-testid={`stock-category-${item.category}`}
+                    >
+                      <div>
+                        <div className="font-semibold">{item.category}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {item.products} products
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono font-semibold" data-testid={`stock-value-${item.category}`}>
+                          ${item.value.toFixed(2)}
+                        </div>
+                        <div
+                          className={`text-sm ${
+                            item.status === "healthy"
+                              ? "text-success"
+                              : "text-warning"
+                          }`}
+                        >
+                          {item.status === "healthy" ? "Healthy" : "Low Stock"}
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-mono font-semibold">
-                        ${item.value.toFixed(2)}
-                      </div>
-                      <div
-                        className={`text-sm ${
-                          item.status === "healthy"
-                            ? "text-success"
-                            : "text-warning"
-                        }`}
-                      >
-                        {item.status === "healthy" ? "Healthy" : "Low Stock"}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No stock data available
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -117,75 +225,45 @@ export default function Reports() {
               <CardTitle>Sales Performance</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {salesData.map((item) => (
+              {isLoadingSales ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              ) : salesData ? (
+                <div className="space-y-4">
                   <div
-                    key={item.date}
                     className="flex items-center justify-between p-4 rounded-md border"
+                    data-testid="sales-summary"
                   >
                     <div>
-                      <div className="font-semibold">{item.date}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {item.transactions} transactions
+                      <div className="font-semibold">
+                        {periods.find(p => p.value === period)?.label}
+                      </div>
+                      <div className="text-sm text-muted-foreground" data-testid="text-transactions">
+                        {salesData.transactions} transactions
                       </div>
                     </div>
                     <div className="text-right space-y-1">
-                      <div className="font-mono font-semibold">
-                        ${item.revenue.toFixed(2)}
+                      <div className="font-mono font-semibold" data-testid="text-revenue">
+                        ${salesData.revenue.toFixed(2)}
                       </div>
-                      <div className="text-sm text-success">
-                        Profit: ${item.profit.toFixed(2)}
+                      <div className="text-sm text-success" data-testid="text-profit">
+                        Profit: ${salesData.profit.toFixed(2)}
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No sales data available
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="profit" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Today's Profit</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold font-mono text-success">
-                  $1,840.50
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  From 32 transactions
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Weekly Profit</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold font-mono text-success">
-                  $12,180.75
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  From 198 transactions
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Monthly Profit</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold font-mono text-success">
-                  $52,840.00
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  From 845 transactions
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <ProfitCards />
         </TabsContent>
 
         <TabsContent value="customers" className="space-y-6">
@@ -194,34 +272,42 @@ export default function Reports() {
               <CardTitle>Top Customers by Revenue</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[
-                  { name: "Michael Brown", purchases: 22, spent: 4320.00 },
-                  { name: "John Smith", purchases: 15, spent: 2450.75 },
-                  { name: "Sarah Davis", purchases: 12, spent: 1680.25 },
-                  { name: "Emma Wilson", purchases: 8, spent: 890.50 },
-                ].map((customer, index) => (
-                  <div
-                    key={customer.name}
-                    className="flex items-center justify-between p-4 rounded-md border"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold text-sm">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <div className="font-semibold">{customer.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {customer.purchases} purchases
+              {isLoadingCustomers ? (
+                <div className="space-y-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : topCustomers && topCustomers.length > 0 ? (
+                <div className="space-y-4">
+                  {topCustomers.map((customer: any, index: number) => (
+                    <div
+                      key={customer.name}
+                      className="flex items-center justify-between p-4 rounded-md border"
+                      data-testid={`customer-${index}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold text-sm">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <div className="font-semibold" data-testid={`customer-name-${index}`}>{customer.name}</div>
+                          <div className="text-sm text-muted-foreground" data-testid={`customer-purchases-${index}`}>
+                            {customer.purchases} purchases
+                          </div>
                         </div>
                       </div>
+                      <div className="font-mono font-semibold" data-testid={`customer-spent-${index}`}>
+                        ${customer.spent.toFixed(2)}
+                      </div>
                     </div>
-                    <div className="font-mono font-semibold">
-                      ${customer.spent.toFixed(2)}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No customer data available yet
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

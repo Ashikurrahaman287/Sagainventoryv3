@@ -260,6 +260,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(products);
   });
 
+  // Reports & Analytics
+  app.get("/api/reports/stock", async (_req, res) => {
+    const report = await storage.getStockReportByCategory();
+    res.json(report);
+  });
+
+  app.get("/api/reports/sales", async (req, res) => {
+    const period = (req.query.period as string) || 'today';
+    const report = await storage.getSalesReportByPeriod(period);
+    res.json(report);
+  });
+
+  app.get("/api/reports/customers", async (req, res) => {
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+    const customers = await storage.getTopCustomers(limit);
+    res.json(customers);
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
