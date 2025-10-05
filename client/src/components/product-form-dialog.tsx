@@ -212,24 +212,18 @@ export function ProductFormDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Supplier (Optional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                  <Select onValueChange={field.onChange} value={field.value || undefined} disabled={suppliers.length === 0}>
                     <FormControl>
                       <SelectTrigger data-testid="select-supplier">
                         <SelectValue placeholder={suppliers.length === 0 ? "No suppliers available" : "Select a supplier (optional)"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {suppliers.length === 0 ? (
-                        <SelectItem value="" disabled>
-                          No suppliers available
+                      {suppliers.map((supplier) => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                          {supplier.name}
                         </SelectItem>
-                      ) : (
-                        suppliers.map((supplier) => (
-                          <SelectItem key={supplier.id} value={supplier.id}>
-                            {supplier.name}
-                          </SelectItem>
-                        ))
-                      )}
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
