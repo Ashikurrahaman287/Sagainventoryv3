@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertCustomerSchema, type InsertCustomer, type Customer } from "@shared/schema";
+import type { InsertCustomer, Customer } from "@shared/schema";
+import { insertCustomerSchema } from "@shared/zod";
 import {
   Dialog,
   DialogContent,

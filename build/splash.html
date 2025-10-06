@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Segoe UI', sans-serif;
+            color: #333;
+            overflow: hidden;
+        }
+        .splash {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 20px;
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+        .logo {
+            width: 128px;
+            height: 128px;
+            margin-bottom: 20px;
+        }
+        .loading {
+            margin-top: 20px;
+            height: 4px;
+            width: 200px;
+            background: #f0f0f0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .loading-bar {
+            height: 100%;
+            width: 50%;
+            background: #4CAF50;
+            border-radius: 2px;
+            animation: loading 1s infinite ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes loading {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+        }
+    </style>
+</head>
+<body>
+    <div class="splash">
+        <img src="assets/icon.png" class="logo" alt="Saga Inventory">
+        <h2>Saga Inventory</h2>
+        <p>Loading...</p>
+        <div class="loading">
+            <div class="loading-bar"></div>
+        </div>
+    </div>
+</body>
+</html>

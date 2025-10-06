@@ -1,5 +1,9 @@
 import { eq, desc, sql, like, or } from "drizzle-orm";
 import { db } from "./db";
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import { fileURLToPath } from 'url';
 import {
   suppliers,
   customers,
@@ -68,6 +72,10 @@ export interface IStorage {
   getRecentSales(limit: number): Promise<Array<Sale & { customerName: string; sellerName: string }>>;
   getCustomerStats(customerId: string): Promise<{ totalPurchases: number; totalSpent: number }>;
   getSellerStats(sellerId: string): Promise<{ totalSales: number; totalRevenue: number }>;
+  // Reports
+  getStockReportByCategory(): Promise<Array<{ category: string; products: number; value: number; status: string }>>;
+  getSalesReportByPeriod(period: string): Promise<{ transactions: number; revenue: number; profit: number }>;
+  getTopCustomers(limit: number): Promise<Array<{ name: string; purchases: number; spent: number }>>;
 }
 
 export class DbStorage implements IStorage {
@@ -418,4 +426,192 @@ export class DbStorage implements IStorage {
   }
 }
 
-export const storage = new DbStorage();
+// (DbStorage export removed here — choose storage implementation at end of file)
+
+// If running in production (packaged Electron), prefer a simple file-backed storage
+// so the app can run without Postgres. We implement a lightweight FileStorage
+// that mirrors the IStorage methods using a JSON file under server/data/db.json.
+
+class FileStorage implements IStorage {
+  private filePath: string;
+  private data: any;
+  private saving: Promise<void> | null = null;
+
+  constructor() {
+    const { fileURLToPath } = require('url');
+    const path = require('path');
+    const fs = require('fs');
+    const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'data');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    this.filePath = path.join(dir, 'db.json');
+    if (!fs.existsSync(this.filePath)) {
+      fs.writeFileSync(this.filePath, JSON.stringify({
+        suppliers: [], customers: [], sellers: [], products: [], sales: [], saleItems: []
+      }, null, 2));
+    }
+    this.data = JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
+  }
+
+  private async persist() {
+    const fs = require('fs').promises;
+    if (this.saving) return this.saving;
+    this.saving = fs.writeFile(this.filePath, JSON.stringify(this.data, null, 2), 'utf8').then(() => { this.saving = null; });
+    return this.saving;
+  }
+
+  private genId() {
+    const crypto = require('crypto');
+    return crypto.randomUUID();
+  }
+
+  // Suppliers
+  async getSuppliers() { return [...this.data.suppliers].sort((a:any,b:any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); }
+  async getSupplier(id: string) { return this.data.suppliers.find((s:any)=>s.id===id); }
+  async createSupplier(supplier: any) {
+    const obj = { id: this.genId(), createdAt: new Date(), ...supplier };
+    this.data.suppliers.push(obj);
+    await this.persist();
+    return obj;
+  }
+  async updateSupplier(id: string, supplier: Partial<any>) {
+    const idx = this.data.suppliers.findIndex((s:any)=>s.id===id);
+    if (idx===-1) return undefined;
+    this.data.suppliers[idx] = { ...this.data.suppliers[idx], ...supplier };
+    await this.persist();
+    return this.data.suppliers[idx];
+  }
+  async deleteSupplier(id: string) {
+    const len = this.data.suppliers.length;
+    this.data.suppliers = this.data.suppliers.filter((s:any)=>s.id!==id);
+    await this.persist();
+    return this.data.suppliers.length < len;
+  }
+
+  // Customers
+  async getCustomers() { return [...this.data.customers].sort((a:any,b:any)=>new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); }
+  async getCustomer(id: string) { return this.data.customers.find((c:any)=>c.id===id); }
+  async createCustomer(customer: any) {
+    const obj = { id: this.genId(), createdAt: new Date(), ...customer };
+    this.data.customers.push(obj); await this.persist(); return obj;
+  }
+  async updateCustomer(id: string, customer: Partial<any>) {
+    const idx = this.data.customers.findIndex((c:any)=>c.id===id);
+    if (idx===-1) return undefined; this.data.customers[idx] = { ...this.data.customers[idx], ...customer }; await this.persist(); return this.data.customers[idx];
+  }
+  async deleteCustomer(id: string) { const len=this.data.customers.length; this.data.customers=this.data.customers.filter((c:any)=>c.id!==id); await this.persist(); return this.data.customers.length < len; }
+
+  // Sellers
+  async getSellers() { return [...this.data.sellers].sort((a:any,b:any)=>new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); }
+  async getSeller(id: string) { return this.data.sellers.find((s:any)=>s.id===id); }
+  async createSeller(seller: any) { const obj = { id: this.genId(), createdAt: new Date(), ...seller }; this.data.sellers.push(obj); await this.persist(); return obj; }
+  async updateSeller(id: string, seller: Partial<any>) { const idx=this.data.sellers.findIndex((s:any)=>s.id===id); if (idx===-1) return undefined; this.data.sellers[idx]={...this.data.sellers[idx],...seller}; await this.persist(); return this.data.sellers[idx]; }
+  async deleteSeller(id: string) { const len=this.data.sellers.length; this.data.sellers=this.data.sellers.filter((s:any)=>s.id!==id); await this.persist(); return this.data.sellers.length < len; }
+
+  // Products
+  async getProducts() { return [...this.data.products].sort((a:any,b:any)=>new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); }
+  async getProduct(id: string) { return this.data.products.find((p:any)=>p.id===id); }
+  async getProductByStockCode(stockCode: string) { return this.data.products.find((p:any)=>p.stockCode===stockCode); }
+  async createProduct(product: any) { const obj={ id: this.genId(), createdAt: new Date(), ...product }; this.data.products.push(obj); await this.persist(); return obj; }
+  async updateProduct(id: string, product: Partial<any>) { const idx=this.data.products.findIndex((p:any)=>p.id===id); if (idx===-1) return undefined; this.data.products[idx]={...this.data.products[idx],...product}; await this.persist(); return this.data.products[idx]; }
+  async deleteProduct(id: string) { const len=this.data.products.length; this.data.products=this.data.products.filter((p:any)=>p.id!==id); await this.persist(); return this.data.products.length < len; }
+  async searchProducts(query: string) { const q=query.toLowerCase(); return this.data.products.filter((p:any)=> (p.name||'').toLowerCase().includes(q) || (p.stockCode||'').toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q)).slice(0,20); }
+
+  // Sales
+  async getSales() { return [...this.data.sales].sort((a:any,b:any)=>new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); }
+  async getSale(id: string) { return this.data.sales.find((s:any)=>s.id===id); }
+  async getSaleWithItems(id: string) { const sale=this.data.sales.find((s:any)=>s.id===id); if(!sale) return undefined; const items=this.data.saleItems.filter((it:any)=>it.saleId===id); return { sale, items }; }
+  async createSale(saleData: any) {
+    const items = saleData.items || [];
+    const sale = { id: this.genId(), createdAt: new Date(), receiptNumber: saleData.receiptNumber || `RCP-${new Date().getFullYear()}-${Math.floor(Math.random()*1000000)}`, ...saleData };
+    this.data.sales.push(sale);
+    const createdItems:any[] = [];
+    for (const it of items) {
+      const item = { id: this.genId(), saleId: sale.id, ...it };
+      createdItems.push(item);
+      this.data.saleItems.push(item);
+
+      // decrease product quantity
+      const prod = this.data.products.find((p:any)=>p.id===it.productId);
+      if (prod) prod.quantity = Math.max(0, (Number(prod.quantity)||0) - Number(it.quantity || 0));
+    }
+    await this.persist();
+    return { sale, items: createdItems };
+  }
+
+  // Analytics
+  async getDashboardStats() {
+    const totalProducts = this.data.products.length;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const todaysSales = this.data.sales.filter((s:any)=> new Date(s.createdAt) >= today).reduce((sum:any,s:any)=> sum + Number(s.total || 0), 0);
+    const lowStockCount = this.data.products.filter((p:any)=> Number(p.quantity || 0) < 20).length;
+    const todaysProfit = this.data.saleItems.filter((it:any)=> new Date(it.createdAt || it._createdAt || Date.now()) >= today).reduce((sum:any,it:any)=> sum + ((Number(it.unitPrice||0)-Number(it.buyingPrice||0)) * Number(it.quantity||0)), 0);
+    return { totalProducts, todaysSales, lowStockCount, todaysProfit };
+  }
+
+  async getLowStockProducts(threshold = 20) { return this.data.products.filter((p:any)=> Number(p.quantity||0) < threshold).sort((a:any,b:any)=>Number(a.quantity)-Number(b.quantity)); }
+
+  async getRecentSales(limit = 10) {
+  const joined = this.data.sales.slice().sort((a:any,b:any)=>new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, limit).map((s:any)=>({
+      ...s,
+      customerName: (this.data.customers.find((c:any)=>c.id===s.customerId)||{}).name || '',
+      sellerName: (this.data.sellers.find((x:any)=>x.id===s.sellerId)||{}).name || '',
+    }));
+    return joined;
+  }
+
+  async getCustomerStats(customerId: string) {
+    const sales = this.data.sales.filter((s:any)=>s.customerId===customerId);
+    const totalPurchases = sales.length;
+    const totalSpent = sales.reduce((sum:any,s:any)=> sum + Number(s.total||0), 0);
+    return { totalPurchases, totalSpent };
+  }
+
+  async getSellerStats(sellerId: string) {
+    const sales = this.data.sales.filter((s:any)=>s.sellerId===sellerId);
+    const totalSales = sales.length;
+    const totalRevenue = sales.reduce((sum:any,s:any)=> sum + Number(s.total||0), 0);
+    return { totalSales, totalRevenue };
+  }
+
+  async getStockReportByCategory() {
+    const map:any = {};
+    for (const p of this.data.products) {
+      map[p.category] = map[p.category] || { category: p.category, productCount: 0, totalValue: 0, lowStockCount: 0 };
+      map[p.category].productCount += 1;
+      map[p.category].totalValue += (Number(p.quantity||0) * Number(p.sellingPrice||0));
+      if (Number(p.quantity||0) < 20) map[p.category].lowStockCount += 1;
+    }
+    return Object.values(map).map((r:any)=>({ category: r.category, products: r.productCount, value: r.totalValue, status: r.lowStockCount>0 ? 'low' : 'healthy' }));
+  }
+
+  async getSalesReportByPeriod(period: string) {
+    const now = new Date();
+    let since = new Date(0);
+    switch (period) {
+      case 'today': since = new Date(now.getFullYear(), now.getMonth(), now.getDate()); break;
+      case 'week': since = new Date(now.getTime() - 7*24*60*60*1000); break;
+      case 'month': since = new Date(now.getFullYear(), now.getMonth(), 1); break;
+      case 'year': since = new Date(now.getFullYear(), 0, 1); break;
+      default: since = new Date(0);
+    }
+    const filtered = this.data.sales.filter((s:any)=> new Date(s.createdAt) >= since);
+    const transactions = filtered.length;
+    const revenue = filtered.reduce((sum:any,s:any)=> sum + Number(s.total||0), 0);
+    const profit = filtered.reduce((sum:any,s:any)=> sum + (Number(s.total||0) - Number(s.subtotal||0) * 0.6), 0);
+    return { transactions, revenue, profit };
+  }
+
+  async getTopCustomers(limit = 10) {
+    const map:any = {};
+    for (const s of this.data.sales) {
+      map[s.customerId] = map[s.customerId] || { customerId: s.customerId, customerName: (this.data.customers.find((c:any)=>c.id===s.customerId)||{}).name || '', purchases: 0, spent: 0 };
+      map[s.customerId].purchases += 1;
+      map[s.customerId].spent += Number(s.total||0);
+    }
+    return Object.values(map).sort((a:any,b:any)=>b.spent - a.spent).slice(0, limit).map((r:any)=>({ name: r.customerName, purchases: r.purchases, spent: r.spent }));
+  }
+}
+
+// Choose storage implementation: FileStorage for production (packaged app), otherwise DbStorage
+const isPackaged = process.env.NODE_ENV === 'production' || process.env.ELECTRON === 'true' || process.env.USE_FILE_DB === 'true';
+export const storage = isPackaged ? new FileStorage() as unknown as IStorage : new DbStorage();

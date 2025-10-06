@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CustomerList, Customer } from "@/components/customer-list";
+import { CustomerList } from "@/components/customer-list";
+import type { Customer } from "@shared/schema";
 import { CustomerFormDialog } from "@/components/customer-form-dialog";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { SearchBar } from "@/components/search-bar";

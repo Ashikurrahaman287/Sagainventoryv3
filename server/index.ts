@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+// Load the server-specific .env file (so it works when running from repo root)
+dotenv.config({ path: new URL('./.env', import.meta.url).pathname }); // এইটা index.ts এর উপরে রাখো
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";

@@ -3,11 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Mail, Phone, DollarSign } from "lucide-react";
 
-export interface Customer {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
+import type { Customer as SharedCustomer } from "@shared/schema";
+
+export interface Customer extends SharedCustomer {
   totalPurchases: number;
   totalSpent: number;
 }

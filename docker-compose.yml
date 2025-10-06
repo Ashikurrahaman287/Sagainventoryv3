@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: saga
+      POSTGRES_PASSWORD: saga123
+      POSTGRES_DB: sagainventory
+    volumes:
+      - saga_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: always
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgres://saga:saga123@db:5432/sagainventory
+    ports:
+      - "5000:5000"
+
+
+volumes:
+  saga_pgdata:
